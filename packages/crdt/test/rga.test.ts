@@ -1,0 +1,146 @@
+import { describe, expect, it } from "vitest";
+import { Doc } from "../src/doc.js";
+
+function sync(from: Doc, to: Doc): void {
+  to.apply(from.opsSince(to.version()));
+}
+
+function join(...docs: Doc[]): void {
+  for (const a of docs) for (const b of docs) if (a !== b) sync(a, b);
+}
+
+describe("local editing", () => {
+  it("inserts and deletes like a string", () => {
+    const doc = new Doc(1);
+    doc.insert(0, "hello world");
+    doc.insert(5, ",");
+    expect(doc.text).toBe("hello, world");
+
+    doc.delete(5, 1);
+    expect(doc.text).toBe("hello world");
+    expect(doc.length).toBe(11);
+  });
+
+  it("rejects out of range edits", () => {
+    const doc = new Doc(1);
+    doc.insert(0, "abc");
+    expect(() => doc.insert(9, "x")).toThrow(RangeError);
+    expect(() => doc.delete(2, 5)).toThrow(RangeError);
+  });
+
+  it("keeps sequential typing in one block", () => {
+    const doc = new Doc(1);
+    for (let i = 0; i < 200; i++) doc.insert(i, "a");
+    expect(doc.text.length).toBe(200);
+    expect(doc.snapshot().blocks.length).toBe(1);
+  });
+});
+
+describe("two replicas", () => {
+  it("converges on a straightforward exchange", () => {
+    const a = new Doc(1);
+    const b = new Doc(2);
+
+    a.insert(0, "the quick brown fox");
+    join(a, b);
+    expect(b.text).toBe("the quick brown fox");
+
+    b.insert(19, " jumps");
+    a.insert(4, "very ");
+    join(a, b);
+
+    expect(a.text).toBe(b.text);
+    expect(a.text).toBe("the very quick brown fox jumps");
+  });
+
+  it("orders concurrent inserts at the same spot deterministically", () => {
+    const a = new Doc(1);
+    const b = new Doc(2);
+    a.insert(0, "><");
+    join(a, b);
+
+    a.insert(1, "aaa");
+    b.insert(1, "bbb");
+    join(a, b);
+
+    expect(a.text).toBe(b.text);
+    // Both runs survive intact rather than getting shuffled together.
+    expect(a.text).toMatch(/^>(aaa|bbb)(aaa|bbb)<$/);
+  });
+
+  it("survives concurrent delete of the same range", () => {
+    const a = new Doc(1);
+    const b = new Doc(2);
+    a.insert(0, "abcdef");
+    join(a, b);
+
+    a.delete(2, 2);
+    b.delete(2, 2);
+    join(a, b);
+
+    expect(a.text).toBe("abef");
+    expect(b.text).toBe("abef");
+  });
+
+  it("keeps an insert that lands inside a concurrently deleted range", () => {
+    const a = new Doc(1);
+    const b = new Doc(2);
+    a.insert(0, "abcdef");
+    join(a, b);
+
+    a.delete(1, 4);
+    b.insert(3, "XY");
+    join(a, b);
+
+    expect(a.text).toBe(b.text);
+    expect(a.text).toBe("aXYf");
+  });
+});
+
+describe("delivery order", () => {
+  it("parks ops until their dependencies arrive", () => {
+    const a = new Doc(1);
+    const b = new Doc(2);
+
+    const first = a.insert(0, "hello");
+    const second = a.insert(5, " there");
+
+    b.apply(second);
+    expect(b.text).toBe("");
+    expect(b.deferred).toBe(1);
+
+    b.apply(first);
+    expect(b.text).toBe("hello there");
+    expect(b.deferred).toBe(0);
+  });
+
+  it("ignores ops it has already integrated", () => {
+    const a = new Doc(1);
+    const b = new Doc(2);
+    const ops = a.insert(0, "abc");
+
+    b.apply(ops);
+    b.apply(ops);
+    b.apply(ops);
+    expect(b.text).toBe("abc");
+  });
+});
+
+describe("snapshots", () => {
+  it("round-trips through a snapshot", () => {
+    const a = new Doc(1);
+    a.insert(0, "hello world");
+    a.delete(5, 6);
+    a.insert(5, ", crdt");
+
+    const restored = Doc.fromSnapshot(7, a.snapshot());
+    expect(restored.text).toBe(a.text);
+
+    // A restored replica can still take new remote ops.
+    const b = new Doc(2);
+    sync(a, b);
+    b.insert(0, ">> ");
+    restored.apply(b.opsSince(restored.version()));
+    expect(restored.text).toBe(">> hello, crdt");
+  });
+});
