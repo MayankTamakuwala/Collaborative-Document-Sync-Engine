@@ -26,3 +26,12 @@ export type Op = InsertOp | DeleteOp;
 export function opWidth(op: Op): number {
   return op.kind === "ins" ? op.text.length : 1;
 }
+
+/**
+ * Position-level description of what an op did to the visible text. Editors
+ * need this to patch their buffer and shift local cursors; the engine only
+ * bothers computing it when somebody is listening.
+ */
+export type DocEvent =
+  | { type: "insert"; index: number; text: string }
+  | { type: "delete"; index: number; len: number };

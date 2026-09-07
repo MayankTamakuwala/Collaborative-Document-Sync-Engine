@@ -1,5 +1,5 @@
 import { id, sameId, type OpId } from "./id.js";
-import type { DeleteOp, InsertOp } from "./ops.js";
+import type { DeleteOp, DocEvent, InsertOp } from "./ops.js";
 
 /**
  * A run of characters that were typed consecutively by one site and have not
@@ -135,7 +135,7 @@ export class Rga {
     return runs;
   }
 
-  integrateInsert(op: InsertOp): void {
+  integrateInsert(op: InsertOp, out?: DocEvent[]): void {
     let left: Block | null = null;
 
     if (op.origin !== null) {
@@ -168,6 +168,7 @@ export class Rga {
     else this.last = block;
 
     this.register(block);
+    if (out !== undefined) out.push({ type: "insert", index: this.indexOf(block), text: op.text });
     this.visible += op.text.length;
     this.cached = null;
 
@@ -175,7 +176,7 @@ export class Rga {
     if (kept.next !== null) this.mergeLeft(kept.next);
   }
 
-  integrateDelete(op: DeleteOp): void {
+  integrateDelete(op: DeleteOp, out?: DocEvent[]): void {
     let seq = op.target.seq;
     let left = op.len;
 
@@ -189,6 +190,7 @@ export class Rga {
       if (take < block.text.length) this.split(block, take);
 
       if (!block.deleted) {
+        if (out !== undefined) out.push({ type: "delete", index: this.indexOf(block), len: block.text.length });
         block.deleted = true;
         this.visible -= block.text.length;
       }
@@ -213,6 +215,15 @@ export class Rga {
     }
     rga.cached = null;
     return rga;
+  }
+
+  /** Visible offset of a block. Linear, so only called when events are wanted. */
+  private indexOf(target: Block): number {
+    let n = 0;
+    for (let b = this.first; b !== null && b !== target; b = b.next) {
+      if (!b.deleted) n += b.text.length;
+    }
+    return n;
   }
 
   private split(block: Block, offset: number): Block {
