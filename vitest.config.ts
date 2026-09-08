@@ -11,6 +11,7 @@ export default defineConfig({
       "@collab/crdt": pkg("crdt"),
       "@collab/protocol": pkg("protocol"),
       "@collab/client": pkg("client"),
+      "@collab/server": pkg("server"),
     },
   },
   test: {

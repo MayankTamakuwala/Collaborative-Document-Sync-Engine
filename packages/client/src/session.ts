@@ -290,6 +290,10 @@ export class DocSession {
 
   private schedulePresence(): void {
     this.presenceDirty = true;
+    if (this.presenceMs <= 0) {
+      this.sendPresence();
+      return;
+    }
     if (this.presenceTimer !== null) return;
     this.presenceTimer = setTimeout(() => {
       this.presenceTimer = null;
