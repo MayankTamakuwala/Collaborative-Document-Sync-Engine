@@ -12,8 +12,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "server": "npm run -w @collab/server start",
-    "demo": "npm run -w @collab/demo dev",
-    "bench": "vite-node bench/latency.ts"
+    "demo": "npm run build && npm run -w @collab/demo build && node packages/server/dist/main.js --static packages/demo/public",
+    "bench": "vite-node bench/latency.ts",
+    "soak": "vite-node bench/soak.ts"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",

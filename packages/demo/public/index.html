@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>collab &mdash; shared document</title>
+    <link rel="icon" href="data:," />
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #14161a;
+        --panel: #1c1f26;
+        --line: #2b3038;
+        --text: #dfe3ea;
+        --muted: #8b93a1;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, sans-serif;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 12px 20px;
+        border-bottom: 1px solid var(--line);
+        background: var(--panel);
+      }
+      header h1 { font-size: 14px; font-weight: 600; margin: 0; }
+      header .doc { color: var(--muted); }
+      .spacer { flex: 1; }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 10px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+      .dot.online { background: #46d17f; }
+      .dot.connecting { background: #e0b341; }
+      .dot.offline, .dot.closed { background: #e2604f; }
+
+      main { display: flex; height: calc(100vh - 53px); }
+      .editor { position: relative; flex: 1; }
+      .mirror, textarea {
+        position: absolute;
+        inset: 0;
+        margin: 0;
+        padding: 24px 28px;
+        border: 0;
+        font: 15px/1.65 ui-monospace, SFMono-Regular, Menlo, monospace;
+        white-space: pre-wrap;
+        overflow-wrap: break-word;
+        overflow-y: auto;
+      }
+      .mirror { color: transparent; pointer-events: none; }
+      textarea {
+        background: transparent;
+        color: var(--text);
+        resize: none;
+        outline: none;
+      }
+      .caret {
+        position: relative;
+        display: inline-block;
+        width: 0;
+      }
+      .caret::before {
+        content: "";
+        position: absolute;
+        left: -1px;
+        top: 0.1em;
+        width: 2px;
+        height: 1.25em;
+        background: currentColor;
+      }
+      .caret span {
+        position: absolute;
+        left: -1px;
+        top: -1.15em;
+        padding: 0 5px;
+        border-radius: 3px 3px 3px 0;
+        background: currentColor;
+        color: #14161a;
+        font: 600 10px/1.5 ui-sans-serif, system-ui, sans-serif;
+        white-space: nowrap;
+      }
+
+      aside {
+        width: 230px;
+        border-left: 1px solid var(--line);
+        background: var(--panel);
+        padding: 16px 18px;
+        overflow-y: auto;
+      }
+      aside h2 {
+        margin: 0 0 10px;
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .peer { display: flex; align-items: center; gap: 8px; padding: 5px 0; }
+      .swatch { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+      .peer .at { margin-left: auto; color: var(--muted); font-size: 12px; }
+      .empty { color: var(--muted); font-size: 13px; }
+      .stats { margin-top: 22px; color: var(--muted); font-size: 12px; }
+      .stats div { display: flex; justify-content: space-between; padding: 3px 0; }
+      .stats b { color: var(--text); font-weight: 500; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>collab</h1>
+      <span class="doc" id="doc-name"></span>
+      <span class="spacer"></span>
+      <span class="pill"><span class="dot" id="dot"></span><span id="status">connecting</span></span>
+    </header>
+    <main>
+      <div class="editor">
+        <div class="mirror" id="mirror"></div>
+        <textarea id="text" spellcheck="false" placeholder="Start typing. Open this URL in another tab to see it sync."></textarea>
+      </div>
+      <aside>
+        <h2>In this document</h2>
+        <div id="peers"></div>
+        <div class="stats">
+          <div><span>round trip</span><b id="rtt">&mdash;</b></div>
+          <div><span>characters</span><b id="chars">0</b></div>
+          <div><span>your site</span><b id="site">&mdash;</b></div>
+        </div>
+      </aside>
+    </main>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

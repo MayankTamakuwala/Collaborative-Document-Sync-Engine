@@ -148,3 +148,7 @@ dist/
 
 # local scratch
 .data/
+
+# demo bundle
+packages/demo/public/main.js
+packages/demo/public/main.js.map
