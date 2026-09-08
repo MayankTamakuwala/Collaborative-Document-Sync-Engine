@@ -13,7 +13,7 @@
     "test:watch": "vitest",
     "server": "npm run -w @collab/server start",
     "demo": "npm run -w @collab/demo dev",
-    "bench": "npm run build && node --enable-source-maps bench/latency.js"
+    "bench": "vite-node bench/latency.ts"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",
