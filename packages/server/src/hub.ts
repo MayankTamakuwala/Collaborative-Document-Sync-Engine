@@ -2,17 +2,17 @@ import { Room } from "./room.js";
 import type { Store } from "./store.js";
 
 export interface HubOptions {
-  /** Snapshot once this many ops have piled up since the last write. */
-  flushAfterOps: number;
-  /** ...or this long has passed, whichever comes first. */
+  /** How often to write out rooms that have taken edits since the last save. */
   flushEveryMs: number;
+  /** How many ops a room keeps around to serve reconnect deltas from. */
+  historyOps: number;
   /** How long an empty room stays warm before we drop it from memory. */
   evictAfterMs: number;
 }
 
 const DEFAULTS: HubOptions = {
-  flushAfterOps: 200,
   flushEveryMs: 5_000,
+  historyOps: 5_000,
   evictAfterMs: 60_000,
 };
 
@@ -71,9 +71,8 @@ export class Hub {
     const entry = this.rooms.get(id);
     if (entry === undefined || entry.room.pendingWrites === 0) return;
 
-    const version = entry.room.version();
     await this.store.save(id, entry.room.snapshot());
-    entry.room.markSaved(version);
+    entry.room.markSaved();
   }
 
   async flushAll(): Promise<void> {
@@ -89,9 +88,8 @@ export class Hub {
   private async tick(): Promise<void> {
     const now = Date.now();
     for (const [id, entry] of [...this.rooms]) {
-      if (entry.room.pendingWrites >= this.options.flushAfterOps || entry.room.pendingWrites > 0) {
-        await this.flush(id);
-      }
+      if (entry.room.pendingWrites > 0) await this.flush(id);
+      entry.room.trimLog(this.options.historyOps);
       if (
         entry.room.size === 0 &&
         entry.emptySince !== null &&

@@ -3,6 +3,7 @@ import { opWidth, type DeleteOp, type DocEvent, type InsertOp, type Op } from ".
 import { Rga } from "./rga.js";
 import {
   cloneVersion,
+  covers,
   emptyVersion,
   mergeVersion,
   nextSeq,
@@ -40,6 +41,8 @@ export class Doc {
   private vv: VersionVector;
   private lamport: number;
   private history: Op[] = [];
+  /** Earliest version our log can still produce a delta from. */
+  private floor: VersionVector = emptyVersion();
   /** Ops whose causal dependencies haven't shown up yet. */
   private waiting: Op[] = [];
   private listeners: ChangeListener[] = [];
@@ -62,6 +65,19 @@ export class Doc {
   /** Ops we are holding back because we haven't seen what they depend on. */
   get deferred(): number {
     return this.waiting.length;
+  }
+
+  get historySize(): number {
+    return this.history.length;
+  }
+
+  /** Can we still answer `opsSince(since)` in full, or is a snapshot needed? */
+  canServe(since: VersionVector): boolean {
+    return covers(since, this.floor);
+  }
+
+  logFloor(): VersionVector {
+    return cloneVersion(this.floor);
   }
 
   version(): VersionVector {
@@ -155,15 +171,19 @@ export class Doc {
     return out;
   }
 
-  /** Drop log entries everyone has already acknowledged. */
-  forgetBefore(acked: VersionVector): number {
-    const keep: Op[] = [];
-    for (const op of this.history) {
-      if (op.id.seq + opWidth(op) > nextSeq(acked, op.id.site)) keep.push(op);
-    }
-    const dropped = this.history.length - keep.length;
-    this.history = keep;
-    return dropped;
+  /**
+   * Cap the op log at the most recent `keepLast` entries. Anything older is
+   * folded into the floor, and clients behind it get a snapshot instead of a
+   * delta. Tying this to the log's own size rather than to snapshot times
+   * means a routine save doesn't force a full document on everyone who
+   * happened to be a few seconds behind.
+   */
+  trimHistory(keepLast: number): number {
+    if (this.history.length <= keepLast) return 0;
+
+    const dropped = this.history.splice(0, this.history.length - keepLast);
+    for (const op of dropped) observe(this.floor, op.id.site, op.id.seq, opWidth(op));
+    return dropped.length;
   }
 
   snapshot(): Snapshot {
@@ -209,7 +229,9 @@ export class Doc {
     // The snapshot carries the effect of every op behind its version vector,
     // so claiming to have seen them is accurate even though our op log has
     // nothing to show for it.
+    // Nothing behind the snapshot is in our op log, so it becomes the floor.
     mergeVersion(this.vv, new Map(snap.version));
+    mergeVersion(this.floor, new Map(snap.version));
     if (snap.lamport > this.lamport) this.lamport = snap.lamport;
 
     if (events.length > 0) this.emit(events, "remote");
@@ -220,6 +242,7 @@ export class Doc {
     const doc = new Doc(site);
     doc.rga = Rga.fromBlocks(snap.blocks);
     doc.vv = new Map(snap.version);
+    doc.floor = new Map(snap.version);
     doc.lamport = snap.lamport;
     return doc;
   }

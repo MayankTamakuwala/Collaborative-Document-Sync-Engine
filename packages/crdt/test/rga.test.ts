@@ -178,6 +178,21 @@ describe("coalescing", () => {
   });
 });
 
+describe("op log", () => {
+  it("reports when a version is too old to serve a delta from", () => {
+    const doc = new Doc(1);
+    doc.insert(0, "one");
+    const early = doc.version();
+    doc.insert(3, " two");
+    doc.insert(7, " three");
+
+    expect(doc.canServe(early)).toBe(true);
+    expect(doc.trimHistory(1)).toBe(2);
+    expect(doc.canServe(early)).toBe(false);
+    expect(doc.canServe(doc.version())).toBe(true);
+  });
+});
+
 describe("absorbing a snapshot", () => {
   it("keeps local edits made while the snapshot was being fetched", () => {
     const server = new Doc(1);

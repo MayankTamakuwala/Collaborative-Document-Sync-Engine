@@ -1,4 +1,4 @@
-import { covers, Doc, emptyVersion, type Snapshot, type VersionVector } from "@collab/crdt";
+import { Doc, type Snapshot, type VersionVector } from "@collab/crdt";
 import { encode, type ClientMessage, type Presence, type ServerMessage } from "@collab/protocol";
 
 /** Whatever the transport is, the room only needs these two calls. */
@@ -27,14 +27,11 @@ export class Room {
 
   private doc: Doc;
   private members = new Map<number, Member>();
-  /** Oldest version our op log can still serve a delta from. */
-  private logFloor: VersionVector = emptyVersion();
   private unsaved = 0;
 
   constructor(id: string, snapshot?: Snapshot | null) {
     this.id = id;
     this.doc = snapshot ? Doc.fromSnapshot(SERVER_SITE, snapshot) : new Doc(SERVER_SITE);
-    if (snapshot) this.logFloor = new Map(snapshot.version);
   }
 
   get size(): number {
@@ -70,7 +67,7 @@ export class Room {
 
     // A brand new client, or one that fell behind further than our log goes,
     // gets the whole document. Everyone else gets just what they missed.
-    const catchUpFromLog = since.size > 0 && covers(since, this.logFloor);
+    const catchUpFromLog = since.size > 0 && this.doc.canServe(since);
     const welcome: ServerMessage = {
       type: "welcome",
       doc: this.id,
@@ -131,11 +128,18 @@ export class Room {
     }
   }
 
-  /** Called after a snapshot lands on disk; lets the op log shrink. */
-  markSaved(at: VersionVector): void {
-    this.doc.forgetBefore(at);
-    this.logFloor = at;
+  /** Called once a snapshot has landed on disk. */
+  markSaved(): void {
     this.unsaved = 0;
+  }
+
+  /** Keep the op log bounded; older ops turn into "you need a snapshot". */
+  trimLog(keepLast: number): number {
+    return this.doc.trimHistory(keepLast);
+  }
+
+  get logSize(): number {
+    return this.doc.historySize;
   }
 
   private broadcast(msg: ServerMessage, except?: number): void {

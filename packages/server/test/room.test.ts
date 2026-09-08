@@ -77,6 +77,33 @@ describe("Room", () => {
     expect(b.doc.text).toBe("hello again");
   });
 
+  it("falls back to a snapshot once the log has moved past a client", () => {
+    const a = client(1);
+    const b = client(2);
+    room.join(a.site, a.conn, emptyVersion());
+    room.join(b.site, b.conn, emptyVersion());
+
+    room.receive(a.site, { type: "ops", ops: a.doc.insert(0, "start") });
+    b.doc.apply(a.doc.opsSince(b.doc.version()));
+    const behind = b.doc.version();
+    room.leave(b.site);
+
+    for (let i = 0; i < 40; i++) {
+      room.receive(a.site, { type: "ops", ops: a.doc.insert(a.doc.length, "x") });
+    }
+    expect(room.logSize).toBeGreaterThan(10);
+    room.trimLog(5);
+
+    const resumed = new FakeConn();
+    room.join(b.site, resumed, behind);
+    const welcome = resumed.last();
+    if (welcome.type !== "welcome") throw new Error("expected welcome");
+
+    expect(welcome.snapshot).not.toBeNull();
+    b.doc.absorb(welcome.snapshot!);
+    expect(b.doc.text).toBe(room.text);
+  });
+
   it("relays ops to everyone but the author", () => {
     const a = client(1);
     const b = client(2);
