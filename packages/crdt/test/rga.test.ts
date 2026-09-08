@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { coalesce } from "../src/coalesce.js";
 import { Doc } from "../src/doc.js";
 
 function sync(from: Doc, to: Doc): void {
@@ -142,5 +143,37 @@ describe("snapshots", () => {
     b.insert(0, ">> ");
     restored.apply(b.opsSince(restored.version()));
     expect(restored.text).toBe(">> hello, crdt");
+  });
+});
+
+describe("coalescing", () => {
+  it("folds a burst of keystrokes into one op", () => {
+    const doc = new Doc(1);
+    const typed: ReturnType<Doc["insert"]> = [];
+    for (const ch of "hello") typed.push(...doc.insert(doc.length, ch));
+
+    const merged = coalesce(typed);
+    expect(typed).toHaveLength(5);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]).toMatchObject({ kind: "ins", text: "hello" });
+
+    const peer = new Doc(2);
+    peer.apply(merged);
+    expect(peer.text).toBe("hello");
+  });
+
+  it("does not merge across a jump or a delete", () => {
+    const doc = new Doc(1);
+    const ops = [
+      ...doc.insert(0, "ab"),
+      ...doc.insert(0, "c"),
+      ...doc.insert(3, "d"),
+      ...doc.delete(0, 1),
+    ];
+    expect(coalesce(ops)).toHaveLength(4);
+
+    const peer = new Doc(2);
+    peer.apply(coalesce(ops));
+    expect(peer.text).toBe(doc.text);
   });
 });
