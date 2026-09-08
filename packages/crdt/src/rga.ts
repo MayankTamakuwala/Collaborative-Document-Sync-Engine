@@ -177,11 +177,16 @@ export class Rga {
   }
 
   integrateDelete(op: DeleteOp, out?: DocEvent[]): void {
-    let seq = op.target.seq;
-    let left = op.len;
+    this.tombstone(op.target, op.len, out);
+  }
+
+  /** Mark a run of characters dead. Idempotent, and the only way to delete. */
+  tombstone(target: OpId, len: number, out?: DocEvent[]): void {
+    let seq = target.seq;
+    let left = len;
 
     while (left > 0) {
-      const at = this.locate(id(op.target.site, seq));
+      const at = this.locate(id(target.site, seq));
       if (at === null) throw new Error("delete of an unknown character");
 
       let block = at.block;

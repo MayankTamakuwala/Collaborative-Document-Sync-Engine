@@ -4,6 +4,7 @@ import { Rga } from "./rga.js";
 import {
   cloneVersion,
   emptyVersion,
+  mergeVersion,
   nextSeq,
   observe,
   seen,
@@ -171,6 +172,48 @@ export class Doc {
       blocks.push({ id: b.id, lamport: b.lamport, origin: b.origin, text: b.text, deleted: b.deleted });
     }
     return { lamport: this.lamport, version: [...this.vv], blocks };
+  }
+
+  /**
+   * Fold a full server snapshot into this replica without throwing away local
+   * work. Used when we've been offline long enough that the server can no
+   * longer serve us a delta but we still have unsent edits of our own.
+   *
+   * Blocks arrive in document order, and a block's origin always sits to its
+   * left, so that order is already a valid causal order for the inserts.
+   */
+  absorb(snap: Snapshot): DocEvent[] {
+    const events: DocEvent[] = [];
+    const sink = this.listeners.length > 0 ? events : undefined;
+
+    for (const block of snap.blocks) {
+      const have = nextSeq(this.vv, block.id.site);
+      if (block.id.seq + block.text.length <= have) continue;
+
+      const from = Math.max(block.id.seq, have);
+      const offset = from - block.id.seq;
+      this.waiting.push({
+        kind: "ins",
+        id: id(block.id.site, from),
+        lamport: block.lamport + offset,
+        origin: offset > 0 ? id(block.id.site, from - 1) : block.origin,
+        text: block.text.slice(offset),
+      });
+    }
+    this.drain(sink);
+
+    for (const block of snap.blocks) {
+      if (block.deleted) this.rga.tombstone(block.id, block.text.length, sink);
+    }
+
+    // The snapshot carries the effect of every op behind its version vector,
+    // so claiming to have seen them is accurate even though our op log has
+    // nothing to show for it.
+    mergeVersion(this.vv, new Map(snap.version));
+    if (snap.lamport > this.lamport) this.lamport = snap.lamport;
+
+    if (events.length > 0) this.emit(events, "remote");
+    return events;
   }
 
   static fromSnapshot(site: number, snap: Snapshot): Doc {

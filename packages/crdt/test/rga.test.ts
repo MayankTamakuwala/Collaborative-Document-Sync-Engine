@@ -177,3 +177,35 @@ describe("coalescing", () => {
     expect(peer.text).toBe(doc.text);
   });
 });
+
+describe("absorbing a snapshot", () => {
+  it("keeps local edits made while the snapshot was being fetched", () => {
+    const server = new Doc(1);
+    server.insert(0, "server side text");
+    server.delete(0, 7);
+
+    const client = new Doc(2);
+    client.insert(0, "offline note\n");
+
+    client.absorb(server.snapshot());
+    expect(client.text).toContain("offline note");
+    expect(client.text).toContain("side text");
+
+    // And the server still converges once it hears about the local edits.
+    server.apply(client.opsSince(server.version()));
+    expect(server.text).toBe(client.text);
+  });
+
+  it("ignores the parts of a snapshot it already has", () => {
+    const a = new Doc(1);
+    a.insert(0, "one two three");
+    const b = new Doc(2);
+    b.apply(a.opsSince(b.version()));
+
+    a.insert(13, " four");
+    b.absorb(a.snapshot());
+
+    expect(b.text).toBe("one two three four");
+    expect(b.snapshot().blocks.length).toBe(1);
+  });
+});
