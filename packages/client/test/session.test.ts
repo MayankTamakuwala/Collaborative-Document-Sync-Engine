@@ -161,13 +161,12 @@ describe("batching", () => {
 
     const before = net.toServer;
     for (const ch of "hello there") ana.insert(ana.doc.length, ch);
-    expect(net.toServer).toBe(before);
+    // The first keystroke leaves immediately; the other ten wait for the floor.
+    expect(net.toServer - before).toBe(1);
 
     await sleep(15);
     await net.settle();
-
-    // One op frame, plus the presence update the caret move triggers.
-    expect(net.toServer - before).toBeLessThanOrEqual(2);
+    expect(net.toServer - before).toBe(2);
 
     const bo = open(net, 2, "bo");
     await net.settle();

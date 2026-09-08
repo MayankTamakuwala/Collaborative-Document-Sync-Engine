@@ -77,6 +77,7 @@ export class DocSession {
   private pingTimer: ReturnType<typeof setInterval> | null = null;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private retry: Backoff;
+  private lastSentAt = 0;
 
   private me: Presence;
   private presenceDirty = false;
@@ -215,6 +216,7 @@ export class DocSession {
     if (this.outbox.length === 0 || this.state !== "online") return;
     const ops = coalesce(this.outbox);
     this.outbox = [];
+    this.lastSentAt = Date.now();
     this.send({ type: "ops", ops });
   }
 
@@ -273,6 +275,13 @@ export class DocSession {
     }, this.retry.next());
   }
 
+  /*
+   * batchMs is a floor on the gap between sends, not a delay before every one.
+   * A keystroke on an idle connection goes out straight away; only a burst
+   * faster than the floor piles up, and that pile leaves as a single run op.
+   * Delaying every batch by a fixed 16ms would have been a straight latency
+   * tax on the common case of typing slower than that.
+   */
   private queue(ops: Op[]): void {
     if (ops.length === 0) return;
     for (const op of ops) this.outbox.push(op);
@@ -281,11 +290,17 @@ export class DocSession {
       this.flush();
       return;
     }
+
+    const waited = Date.now() - this.lastSentAt;
+    if (waited >= this.batchMs) {
+      this.flush();
+      return;
+    }
     if (this.batchTimer !== null) return;
     this.batchTimer = setTimeout(() => {
       this.batchTimer = null;
       this.flush();
-    }, this.batchMs);
+    }, this.batchMs - waited);
   }
 
   private schedulePresence(): void {
