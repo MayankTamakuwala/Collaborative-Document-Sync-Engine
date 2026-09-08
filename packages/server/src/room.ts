@@ -74,6 +74,7 @@ export class Room {
     const welcome: ServerMessage = {
       type: "welcome",
       doc: this.id,
+      version: this.doc.version(),
       snapshot: catchUpFromLog ? null : this.doc.snapshot(),
       ops: catchUpFromLog ? this.doc.opsSince(since) : [],
       peers: [...this.members.values()]

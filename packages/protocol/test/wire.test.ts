@@ -29,6 +29,7 @@ describe("binary framing", () => {
     const msg: Message = {
       type: "welcome",
       doc: "notes",
+      version: doc.version(),
       snapshot: doc.snapshot(),
       ops: [],
       peers: [{ site: 7, state: { name: "sam", color: "#f80", anchor: 3, head: 9 } }],

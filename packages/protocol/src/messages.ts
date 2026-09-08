@@ -22,7 +22,15 @@ export type ClientMessage =
   | { type: "ping"; at: number };
 
 export type ServerMessage =
-  | { type: "welcome"; doc: string; snapshot: Snapshot | null; ops: Op[]; peers: PeerPresence[] }
+  | {
+      type: "welcome";
+      doc: string;
+      /** What the server has integrated, so a resuming client knows what to push. */
+      version: VersionVector;
+      snapshot: Snapshot | null;
+      ops: Op[];
+      peers: PeerPresence[];
+    }
   | { type: "ops"; ops: Op[] }
   | { type: "presence"; site: number; state: Presence | null }
   | { type: "reject"; code: string; detail: string }
@@ -51,6 +59,7 @@ export function encode(msg: Message): Uint8Array {
     case "welcome":
       w.u8(T_WELCOME);
       w.str(msg.doc);
+      writeVersion(w, msg.version);
       if (msg.snapshot === null) {
         w.u8(0);
       } else {
@@ -110,6 +119,7 @@ export function decode(bytes: Uint8Array): Message {
 
     case T_WELCOME: {
       const doc = r.str();
+      const version = readVersion(r);
       const snapshot = r.u8() === 1 ? readSnapshot(r) : null;
       const ops = readOps(r);
       const peers: PeerPresence[] = [];
@@ -117,7 +127,7 @@ export function decode(bytes: Uint8Array): Message {
       for (let i = 0; i < count; i++) {
         peers.push({ site: r.varint(), state: readPresence(r) });
       }
-      return { type: "welcome", doc, snapshot, ops, peers };
+      return { type: "welcome", doc, version, snapshot, ops, peers };
     }
 
     case T_OPS:
