@@ -9,6 +9,7 @@
   "scripts": {
     "build": "tsc --build",
     "clean": "tsc --build --clean",
+    "typecheck": "tsc --build && tsc -p packages/demo",
     "test": "vitest run",
     "test:watch": "vitest",
     "server": "npm run -w @collab/server start",

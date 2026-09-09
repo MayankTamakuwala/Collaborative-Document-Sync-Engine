@@ -1,4 +1,4 @@
-import { DocSession, move } from "@collab/client";
+import { diffText, DocSession, move } from "@collab/client";
 
 const NAMES = ["ash", "bea", "cy", "dara", "eli", "fern", "gus", "hana", "ivo", "juno"];
 const COLORS = ["#5aa9ff", "#f0883e", "#4fd28b", "#e06c9a", "#c792ea", "#ffcb6b"];
@@ -54,7 +54,7 @@ area.addEventListener("input", () => {
   const after = area.value;
   if (before === after) return;
 
-  const patch = diff(before, after);
+  const patch = diffText(before, after);
   if (patch.removed > 0) session.remove(patch.at, patch.removed);
   if (patch.added.length > 0) session.insert(patch.at, patch.added);
   reportSelection();
@@ -70,26 +70,6 @@ document.addEventListener("selectionchange", () => {
 
 function reportSelection(): void {
   session.setSelection(area.selectionStart, area.selectionEnd);
-}
-
-/**
- * A textarea only tells us what it looks like now, so work out the edit from
- * the shared prefix and suffix. That is enough for typing, pasting and
- * selection replacement, which is everything this demo can produce.
- */
-function diff(before: string, after: string): { at: number; removed: number; added: string } {
-  let start = 0;
-  const shortest = Math.min(before.length, after.length);
-  while (start < shortest && before[start] === after[start]) start++;
-
-  let endBefore = before.length;
-  let endAfter = after.length;
-  while (endBefore > start && endAfter > start && before[endBefore - 1] === after[endAfter - 1]) {
-    endBefore--;
-    endAfter--;
-  }
-
-  return { at: start, removed: endBefore - start, added: after.slice(start, endAfter) };
 }
 
 function paint(): void {

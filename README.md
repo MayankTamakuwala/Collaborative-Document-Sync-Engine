@@ -15,7 +15,7 @@ you'll see the other caret move as you type. `#some-name` on the end of the URL
 picks a different document.
 
 ```
-npm test          # 40 tests: convergence, framing, room behaviour, reconnect
+npm test          # 52 tests: convergence, framing, room behaviour, reconnect
 npm run bench     # keystroke-to-peer latency against a server-ordered baseline
 npm run soak      # 12 real websocket clients typing at a real server
 ```
